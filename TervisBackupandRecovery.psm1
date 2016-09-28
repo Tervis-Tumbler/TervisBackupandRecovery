@@ -36,3 +36,15 @@ function Get-BackOfficeComputersNotProtectedByDPM {
     $BOComputerListFromADWithoutExceptions = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
     Compare-Object $DPMProtectedStores.computer $BOComputerListFromADWithoutExceptions.name
 }
+
+Function Get-StaleRecoveryPointsFromDPM {
+    param (
+        [Parameter(Mandatory)]$DPMServerName
+    )
+    $ScriptBlock = {
+        $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
+        Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint,state | Out-Null
+        Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint -ExcludeProperty PSComputerName,RunspaceID
+    }
+    Invoke-Command -ComputerName $DPMServerName -ScriptBlock $ScriptBlock
+}
