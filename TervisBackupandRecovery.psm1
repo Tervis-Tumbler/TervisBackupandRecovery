@@ -1,4 +1,33 @@
-﻿function Get-TervisStoreDatabaseLogFileUsage {
+﻿$TervisDPMServers= [pscustomobject][ordered]@{
+    DPmServerName="DPM2012R2-1"
+    Description = "FileServer Backups"
+    Role = "Primary"
+    Location = "HQ"
+},
+[pscustomobject][ordered]@{
+    DPmServerName="DPM2012R2-2"
+    Description = "Offsite Secondary"
+    Role = "Secondary"
+    Location = "Peak10"
+},
+[pscustomobject][ordered]@{
+    DPmServerName="DPM2012R2-3"
+    Description = "SQL Backups"
+    Role = "Primary"
+    Location = "HQ"
+}
+
+function Get-TervisDPMServers{
+    param(
+        [String]$StorageArrayName
+    )
+    if($StorageArrayName){
+        $TervisDPMServers | Where name -EQ $StorageArrayName
+    }
+    else{$TervisDPMServers}
+}
+
+function Get-TervisStoreDatabaseLogFileUsage {
 $DBLogFileList = @()
 $finalbolist = @()
 $DaysInactive = 15  
