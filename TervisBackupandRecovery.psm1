@@ -33,7 +33,7 @@ $finalbolist = @()
 $DaysInactive = 15  
 $EarliestDateInactive = (Get-Date).Adddays(-($DaysInactive)) 
 $BOComputerListFromAD = Get-ADComputer -SearchBase "OU=Back Office Computers,OU=Remote Store Computers,OU=Computers,OU=Stores,OU=Departments,DC=tervis,DC=prv" -Filter {LastLogonTimeStamp -gt $EarliestDateInactive} -Properties LastLogonTimeStamp 
-$StoreBOSACred = Get-PasswordStateCredentialFromFile -SecuredAPIkeyFilePath "\\fs1\disasterrecovery\Source Controlled Items\SecuredCredential API Keys\StoreBOSA.APIKEY"
+$StoreBOSACred = Get-PasswordstateCredential -PasswordID 56 -AsPlainText
 $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
 $DBExceptions = "master","tempdb","model","msdb" 
 $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
