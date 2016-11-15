@@ -77,3 +77,10 @@ Function Get-StaleRecoveryPointsFromDPM {
     }
     Invoke-Command -ComputerName $DPMServerName -ScriptBlock $ScriptBlock
 }
+
+    param (
+        [Parameter(Mandatory)]$Path
+    )
+    $DPMLogFileContent = Get-Content -Path $DPMLogfilePath
+    $DPMLogFileContent | ConvertFrom-String -TemplateFile $PSScriptRoot\DPMErrorLogTemplate.txt
+}
