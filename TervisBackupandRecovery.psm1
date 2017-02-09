@@ -28,12 +28,15 @@ function Get-TervisDPMServers{
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
+    param(
+        [string]$PasswordstateListAPIKey = $(Get-PasswordStateAPIKey)
+    )
 $DBLogFileList = @()
 $finalbolist = @()
 $DaysInactive = 15  
 $EarliestDateInactive = (Get-Date).Adddays(-($DaysInactive)) 
 $BOComputerListFromAD = Get-ADComputer -SearchBase "OU=Back Office Computers,OU=Remote Store Computers,OU=Computers,OU=Stores,OU=Departments,DC=tervis,DC=prv" -Filter {LastLogonTimeStamp -gt $EarliestDateInactive} -Properties LastLogonTimeStamp 
-$StoreBOSACred = Get-PasswordstateCredential -PasswordID 56 -AsPlainText
+$StoreBOSACred = Get-PasswordstateCredential -PasswordID 56 -AsPlainText -PasswordstateListAPIKey $PasswordstateListAPIKey
 $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
 $DBExceptions = "master","tempdb","model","msdb" 
 $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
@@ -84,4 +87,39 @@ Function Get-DPMErrorLog{
     )
     $DPMLogFileContent = Get-Content -Path $Path
     $DPMLogFileContent | ConvertFrom-String -TemplateFile $PSScriptRoot\DPMErrorLogTemplate.txt
+}
+
+function Test-DPM2016Prerequisites {
+    Param(
+        $Computername
+    )
+    $DotNet45Confirm = {
+        Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse |
+        Get-ItemProperty -name Version,Release -EA 0` |
+        Where { $_.PSChildName -match '^(?!S)\p{L}'} |
+        Select PSChildName, Version, Release, @{
+          name="Product"
+          expression={
+              switch -regex ($_.Release) {
+                "378389" { [Version]"4.5" }
+                "378675|378758" { [Version]"4.5.1" }
+                "379893" { [Version]"4.5.2" }
+                "393295|393297" { [Version]"4.6" }
+                "394254|394271" { [Version]"4.6.1" }
+                "394802|394806" { [Version]"4.6.2" }
+                {$_ -gt 394806} { [Version]"Undocumented 4.6.2 or higher, please update script" }
+              }
+            }
+        } |
+        Where {$_.PSChildName -eq "Client" -and $_.Product -like "4*"}
+    }
+    $Computername | % {
+        $DotNetVersion = Invoke-Command -ComputerName $_ -ScriptBlock $DotNet45Confirm
+        $Version = Invoke-Command -ComputerName $_ -ScriptBlock {$PSVersionTable.PSVersion}
+        [pscustomobject][ordered]@{
+            ComputerName = $_;
+            DotNet45 = $DotNetVersion.Product;
+            PSVersion = $Version
+        }        
+    }
 }
