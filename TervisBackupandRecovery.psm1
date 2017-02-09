@@ -93,33 +93,35 @@ function Test-DPM2016Prerequisites {
     Param(
         $Computername
     )
-    $DotNet45Confirm = {
-        Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse |
-        Get-ItemProperty -name Version,Release -EA 0` |
-        Where { $_.PSChildName -match '^(?!S)\p{L}'} |
-        Select PSChildName, Version, Release, @{
-          name="Product"
-          expression={
-              switch -regex ($_.Release) {
-                "378389" { [Version]"4.5" }
-                "378675|378758" { [Version]"4.5.1" }
-                "379893" { [Version]"4.5.2" }
-                "393295|393297" { [Version]"4.6" }
-                "394254|394271" { [Version]"4.6.1" }
-                "394802|394806" { [Version]"4.6.2" }
-                {$_ -gt 394806} { [Version]"Undocumented 4.6.2 or higher, please update script" }
-              }
-            }
-        } |
-        Where {$_.PSChildName -eq "Client" -and $_.Product -like "4*"}
-    }
-    $Computername | % {
-        $DotNetVersion = Invoke-Command -ComputerName $_ -ScriptBlock $DotNet45Confirm
-        $Version = Invoke-Command -ComputerName $_ -ScriptBlock {$PSVersionTable.PSVersion}
+Start-ParallelWork -Parameters $BackofficeComputers -ScriptBlock {
+        param($Computer)
+        $DotNetVersion = Invoke-Command -ComputerName $Computer -ScriptBlock {
+            Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse |
+            Get-ItemProperty -name Version,Release -EA 0` |
+            Where { $_.PSChildName -match '^(?!S)\p{L}'} |
+            Select PSChildName, Version, Release, @{
+              name="Product"
+              expression={
+                  switch -regex ($_.Release) {
+                    "378389" { [Version]"4.5" }
+                    "378675|378758" { [Version]"4.5.1" }
+                    "379893" { [Version]"4.5.2" }
+                    "393295|393297" { [Version]"4.6" }
+                    "394254|394271" { [Version]"4.6.1" }
+                    "394802|394806" { [Version]"4.6.2" }
+                    {$_ -gt 394806} { [Version]"Undocumented 4.6.2 or higher, please update script" }
+                  }
+                }
+            } |
+            Where {$_.PSChildName -eq "Client" -and $_.Product -like "4*"}
+        }
+        $Version = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
+        $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
-            ComputerName = $_;
-            DotNet45 = $DotNetVersion.Product;
+            ComputerName = $Computer
+            DotNet45 = $DotNetVersion.Product
+            Choco = $Chocolatey
             PSVersion = $Version
-        }        
-    }
+        }
+    } | ft
 }
