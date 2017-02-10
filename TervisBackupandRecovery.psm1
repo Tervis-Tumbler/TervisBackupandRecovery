@@ -123,5 +123,5 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
             Choco = $Chocolatey
             PSVersion = $Version
         }
-    } | ft
+    } | select * -ExcludeProperty RunspaceId | ft
 }
