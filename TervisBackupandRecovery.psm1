@@ -93,7 +93,7 @@ function Test-DPM2016Prerequisites {
     Param(
         $Computername
     )
-Start-ParallelWork -Parameters $BackofficeComputers -ScriptBlock {
+Start-ParallelWork -Parameters $Computername -ScriptBlock {
         param($Computer)
         $DotNetVersion = Invoke-Command -ComputerName $Computer -ScriptBlock {
             Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -recurse |
