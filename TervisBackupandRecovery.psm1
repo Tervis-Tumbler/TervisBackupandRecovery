@@ -11,10 +11,16 @@
     Location = "Peak10"
 },
 [pscustomobject][ordered]@{
-    DPmServerName="DPM2012R2-3"
-    Description = "SQL Backups"
+    DPmServerName="INF-DPM2016HQ1"
+    Description = "DPM 2016 Primary"
     Role = "Primary"
     Location = "HQ"
+}
+[pscustomobject][ordered]@{
+    DPmServerName="INF-DPM2016P10"
+    Description = "DPM 2016 Secondary"
+    Role = "Secondary"
+    Location = "Peak10"
 }
 
 function Get-TervisDPMServers{
@@ -124,4 +130,57 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
             PSVersion = $Version
         }
     } | select * -ExcludeProperty RunspaceId | ft
+}
+
+function Install-SoftwareRemoteChocolatey{
+    [CmdletBinding()]
+    param(
+        [parameter(Mandatory)] $Computerlist = "localhost"
+    )
+    Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
+        param($Computer)
+        Invoke-Command -ComputerName $Computer -ScriptBlock {iex ((new-object net.webclient).DownloadString('https://chocolatey.org/install.ps1'))} | Out-Null
+        $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
+        [pscustomobject][ordered]@{
+            ComputerName = $Computer
+            "Install Success" = $Chocolatey
+        }
+    } | select * -ExcludeProperty RunspaceId | ft
+
+}
+
+function Install-SoftwareRemotePowershell5{
+    [CmdletBinding()]
+    param(
+        [parameter(Mandatory)] $Computerlist
+    )
+    Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
+        param($Computer)
+        psexec -s \\$Computer -e choco install powershell -y
+        Invoke-Command -ComputerName $Computer -ScriptBlock {shutdown /r /t 60 "This system will restart as scheduled in 60 seconds. Thank you - Tervis IT"}
+        Wait-ForPortNotAvailable -ComputerName $Computer -PortNumbertoMonitor 5985
+        Wait-ForPortAvailable -ComputerName $Computer -PortNumbertoMonitor 5985
+        $PSVersion = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
+        [pscustomobject][ordered]@{
+            ComputerName = $Computer
+            "PSVersion" = $PSVersion
+        }
+    } | select * -ExcludeProperty RunspaceId | ft
+}
+
+function Get-ComputerswithRSManEnabled{
+    param(
+        [Parameter(ValueFromPipeline)]$computer
+    )
+    $Responses = Start-RSParallelWork -ScriptBlock {
+        param($Parameter)
+        [pscustomobject][ordered]@{
+            ComputerName = $Parameter;
+            WSMan = $(Test-WSMan -ComputerName $Parameter -ErrorAction SilentlyContinue | Out-Null; $?);
+        }
+    } -Parameters $Computer
+
+    $Responses | 
+    where WSMan -eq $true |
+    Select -ExpandProperty Computername
 }
