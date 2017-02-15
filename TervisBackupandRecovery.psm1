@@ -129,7 +129,7 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
             Choco = $Chocolatey
             PSVersion = $Version
         }
-    } | select * -ExcludeProperty RunspaceId | ft
+    } | select * -ExcludeProperty RunspaceId
 }
 
 function Install-SoftwareRemoteChocolatey{
@@ -139,7 +139,7 @@ function Install-SoftwareRemoteChocolatey{
     )
     Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
         param($Computer)
-        Invoke-Command -ComputerName $Computer -ScriptBlock {iex ((new-object net.webclient).DownloadString('https://chocolatey.org/install.ps1'))} | Out-Null
+        invoke-command -ComputerName $Computer -ScriptBlock {iex ((new-object net.webclient).DownloadString('https://chocolatey.org/install.ps1'))} | Out-Null
         $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
             ComputerName = $Computer
@@ -170,9 +170,9 @@ function Install-SoftwareRemotePowershell5{
 
 function Get-ComputerswithRSManEnabled{
     param(
-        [Parameter(ValueFromPipeline)]$computer
+        $Computer
     )
-    $Responses = Start-RSParallelWork -ScriptBlock {
+    $Responses = Start-ParallelWork -ScriptBlock {
         param($Parameter)
         [pscustomobject][ordered]@{
             ComputerName = $Parameter;
@@ -183,4 +183,25 @@ function Get-ComputerswithRSManEnabled{
     $Responses | 
     where WSMan -eq $true |
     Select -ExpandProperty Computername
+}
+
+function Install-SoftwareRemoteChocolateyLocal{
+    [CmdletBinding()]
+    param(
+        [parameter(Mandatory)] $Computerlist = "localhost"
+    )
+    Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
+        param($Computer)
+        mkdir \\$computer\c$\ChocoInstall -force | Out-Null
+        copy-item -Path "\\fileserver1-new\disasterrecovery\Programs\Chocolatey\chocolatey.0.10.3.zip" -Destination \\$computer\c$\ChocoInstall -Force | Out-Null
+        copy-item -Path "\\fileserver1-new\disasterrecovery\Programs\Chocolatey\7za.exe" -Destination \\$computer\c$\ChocoInstall -Force | Out-Null
+        Invoke-Command -ComputerName $Computer -ScriptBlock {cmd.exe /C "c:\ChocoInstall\7za.exe x c:\ChocoInstall\chocolatey.0.10.3.zip -oc:\ChocoInstall"} | Out-Null
+        Invoke-Command -ComputerName $Computer -ScriptBlock {& c:\chocoinstall\tools\chocolateyInstall.ps1} | Out-Null
+        $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
+        Invoke-Command -ComputerName $Computer -ScriptBlock {param($computer) Remove-Item \\$computer\c$\ChocoInstall -recurse -Force} -ArgumentList $Computer
+        [pscustomobject][ordered]@{
+            ComputerName = $Computer
+            "Install Success" = $Chocolatey
+        }
+    } | select * -ExcludeProperty RunspaceId | ft
 }
