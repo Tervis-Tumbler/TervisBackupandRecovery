@@ -124,11 +124,13 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
         $Version = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
         $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
         $PendingReboot = (Get-PendingReboot $Computer)
+        $HotfixInstalled = Invoke-Command -ComputerName $Computer -ScriptBlock {get-hotfix -Id kb3191566 -ErrorAction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
             ComputerName = $Computer
             DotNet45 = $DotNetVersion.Product
             Choco = $Chocolatey
             PSVersion = $Version
+            "PS5 Installed" = $HotfixInstalled
             "Pending Reboot" = $PendingReboot.RebootPending
             "Pending Windows Update Reboot" = $PendingReboot.WindowsUpdate
         }
@@ -160,10 +162,11 @@ function Install-SoftwareRemotePowershell5{
     Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
         param($Computer)
         psexec -s \\$Computer -e choco install powershell -y | Out-Null
-        $PSVersion = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
+        $PendingReboot = (Get-PendingReboot $Computer)
         [pscustomobject][ordered]@{
             ComputerName = $Computer
-            "PSVersion" = $PSVersion
+            "Pending Reboot" = $PendingReboot.RebootPending
+            "Pending Windows Update Reboot" = $PendingReboot.WindowsUpdate
         }
     } | select * -ExcludeProperty RunspaceId | ft
 }
