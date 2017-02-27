@@ -123,7 +123,7 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
         }
         $Version = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
         $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
-        $PendingReboot = (Get-PendingReboot inf-dontestbo)
+        $PendingReboot = (Get-PendingReboot $Computer)
         [pscustomobject][ordered]@{
             ComputerName = $Computer
             DotNet45 = $DotNetVersion.Product
