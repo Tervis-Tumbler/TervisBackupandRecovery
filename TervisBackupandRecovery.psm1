@@ -1,4 +1,6 @@
-﻿$TervisDPMServers= [pscustomobject][ordered]@{
+﻿#Requires -modules TervisPowerShellJobs
+
+$TervisDPMServers= [pscustomobject][ordered]@{
     DPmServerName="DPM2012R2-1"
     Description = "FileServer Backups"
     Role = "Primary"
@@ -37,30 +39,23 @@ function Get-TervisStoreDatabaseLogFileUsage {
     param(
         [string]$PasswordstateListAPIKey = $(Get-PasswordStateAPIKey)
     )
-$DBLogFileList = @()
-$finalbolist = @()
-$DaysInactive = 15  
-$EarliestDateInactive = (Get-Date).Adddays(-($DaysInactive)) 
-$BOComputerListFromAD = Get-ADComputer -SearchBase "OU=Back Office Computers,OU=Remote Store Computers,OU=Computers,OU=Stores,OU=Departments,DC=tervis,DC=prv" -Filter {LastLogonTimeStamp -gt $EarliestDateInactive} -Properties LastLogonTimeStamp 
+$BOComputerListFromAD = Get-BackOfficeComputers 
 $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56 -AsPlainText -PasswordstateListAPIKey $PasswordstateListAPIKey
 $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
-$DBExceptions = "master","tempdb","model","msdb" 
 $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
 
-Foreach ($Computer in $BOComputerListFromAD)
-    {
-        Write-host $computer.name
-        $dblist = Invoke-Sqlcmd -ServerInstance $Computer.name -Username sa -Password $StoreBOSACred.password -Query "dbcc sqlperf(logspace)"
-        $dblist = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
-        $DBOutput = [pscustomobject][ordered]@{
-            "Computername" = $computer.Name
-            "Database Name" = $dblist.'Database Name'
-            "Log Size (MB)" = "{0:0.00}" -f $dblist.'Log Size (MB)'
-            "Log Consumed (%)" = "{0:.00}" -f $dblist.'Log Space Used (%)'
+Start-ParallelWork -ScriptBlock {
+    param($Computer,$StoreBOSACred)
+        $DBExceptions = "master","tempdb","model","msdb" 
+        $dblist = Invoke-Sqlcmd -ServerInstance $Computer -Username sa -Password $StoreBOSACred.password -Query "dbcc sqlperf(logspace)"
+        $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+        [pscustomobject][ordered]@{
+            "Computername" = $Computer
+            "Database Name" = $StoreDB.'Database Name'
+            "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
+            "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
         }
-        $DBLogFileList += $DBOutput
-    }
-$DBLogFileList
+    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
 }
 
 function Get-BackOfficeComputersNotProtectedByDPM {
@@ -137,23 +132,6 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
     } | select * -ExcludeProperty RunspaceId
 }
 
-function Install-SoftwareRemoteChocolatey{
-    [CmdletBinding()]
-    param(
-        [parameter(Mandatory)] $Computerlist = "localhost"
-    )
-    Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
-        param($Computer)
-        invoke-command -ComputerName $Computer -ScriptBlock {iex ((new-object net.webclient).DownloadString('https://chocolatey.org/install.ps1'))} | Out-Null
-        $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
-        [pscustomobject][ordered]@{
-            ComputerName = $Computer
-            "Install Success" = $Chocolatey
-        }
-    } | select * -ExcludeProperty RunspaceId | ft
-
-}
-
 function Install-SoftwareRemotePowershell5{
     [CmdletBinding()]
     param(
@@ -163,48 +141,12 @@ function Install-SoftwareRemotePowershell5{
         param($Computer)
         psexec -s \\$Computer -e choco install powershell -y | Out-Null
         $PendingReboot = (Get-PendingReboot $Computer)
+        $HotfixInstalled = Invoke-Command -ComputerName $Computer -ScriptBlock {get-hotfix -Id kb3191566 -ErrorAction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
             ComputerName = $Computer
+            "PS5 Installed" = $HotfixInstalled
             "Pending Reboot" = $PendingReboot.RebootPending
             "Pending Windows Update Reboot" = $PendingReboot.WindowsUpdate
-        }
-    } | select * -ExcludeProperty RunspaceId | ft
-}
-
-function Get-ComputerswithRSManEnabled{
-    param(
-        $Computer
-    )
-    $Responses = Start-ParallelWork -ScriptBlock {
-        param($Parameter)
-        [pscustomobject][ordered]@{
-            ComputerName = $Parameter;
-            WSMan = $(Test-WSMan -ComputerName $Parameter -ErrorAction SilentlyContinue | Out-Null; $?);
-        }
-    } -Parameters $Computer
-
-    $Responses | 
-    where WSMan -eq $true |
-    Select -ExpandProperty Computername
-}
-
-function Install-SoftwareRemoteChocolateyLocal{
-    [CmdletBinding()]
-    param(
-        [parameter(Mandatory)] $Computerlist = "localhost"
-    )
-    Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
-        param($Computer)
-        mkdir \\$computer\c$\ChocoInstall -force | Out-Null
-        copy-item -Path "\\fileserver1-new\disasterrecovery\Programs\Chocolatey\chocolatey.0.10.3.zip" -Destination \\$computer\c$\ChocoInstall -Force | Out-Null
-        copy-item -Path "\\fileserver1-new\disasterrecovery\Programs\Chocolatey\7za.exe" -Destination \\$computer\c$\ChocoInstall -Force | Out-Null
-        Invoke-Command -ComputerName $Computer -ScriptBlock {cmd.exe /C "c:\ChocoInstall\7za.exe x c:\ChocoInstall\chocolatey.0.10.3.zip -oc:\ChocoInstall"} | Out-Null
-        Invoke-Command -ComputerName $Computer -ScriptBlock {& c:\chocoinstall\tools\chocolateyInstall.ps1} | Out-Null
-        $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
-        Invoke-Command -ComputerName $Computer -ScriptBlock {param($computer) Remove-Item \\$computer\c$\ChocoInstall -recurse -Force} -ArgumentList $Computer
-        [pscustomobject][ordered]@{
-            ComputerName = $Computer
-            "Install Success" = $Chocolatey
         }
     } | select * -ExcludeProperty RunspaceId | ft
 }
