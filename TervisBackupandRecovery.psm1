@@ -36,25 +36,22 @@ function Get-TervisDPMServers{
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
-    param(
-        [string]$PasswordstateListAPIKey = $(Get-PasswordStateAPIKey)
-    )
-$BOComputerListFromAD = Get-BackOfficeComputers 
-$StoreBOSACred = Get-PasswordstateCredential -PasswordID 56 -AsPlainText -PasswordstateListAPIKey $PasswordstateListAPIKey
-$BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
-$BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
-
-Start-ParallelWork -ScriptBlock {
-    param($Computer,$StoreBOSACred)
-        $DBExceptions = "master","tempdb","model","msdb" 
-        $dblist = Invoke-Sqlcmd -ServerInstance $Computer -Username sa -Password $StoreBOSACred.password -Query "dbcc sqlperf(logspace)"
-        $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
-        [pscustomobject][ordered]@{
-            "Computername" = $Computer
-            "Database Name" = $StoreDB.'Database Name'
-            "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
-            "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
-        }
+    $BOComputerListFromAD = Get-BackOfficeComputers 
+    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
+    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
+    
+    Start-ParallelWork -ScriptBlock {
+        param($Computer,$StoreBOSACred)
+            $DBExceptions = "master","tempdb","model","msdb" 
+            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
+            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+            [pscustomobject][ordered]@{
+                "Computername" = $Computer
+                "Database Name" = $StoreDB.'Database Name'
+                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
+                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
+            }
     } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
 }
 
