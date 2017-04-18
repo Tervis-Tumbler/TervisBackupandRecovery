@@ -367,3 +367,23 @@ Function Get-PendingReboot {
     End {  }## End End
     
 }## End Function Get-PendingReboot
+
+function Invoke-ProvisionDPMServer {
+    param (
+        [parameter(Mandatory)] [string] $Computername,
+        [switch] $Restart
+    )
+        
+    invoke-command -ComputerName $ComputerName -ScriptBlock {Set-NetFirewallProfile -Name domain -Enabled False}
+    $ConfigPath = "\\fs1\disasterrecovery\Source Controlled Items\WindowsPowerShell\Desired State Configurations\Configuration Files\Base Configurations"
+    $DPMServerDSCConfigurationFile = "$ConfigPath\DPMServerBase.ps1"
+    New-Item -Path $ConfigPath\DPMServerBase -ItemType Directory
+    . $DPMServerDSCConfigurationFile
+    DPMServerBase -Computername $ComputerName -OutputPath $ConfigPath\DPMServerBase
+    Start-DscConfiguration -path $ConfigPath\DPMServerBase -Wait -Verbose -Force
+    remove-item -path $configpath\DPMServerBase -recurse -force
+    if($Restart) {
+        Restart-Computer -ComputerName $Computername -Force
+    }
+}
+
