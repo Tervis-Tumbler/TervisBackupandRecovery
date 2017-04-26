@@ -40,7 +40,7 @@ function Invoke-SCDPM2016Provision {
         $EnvironmentName
     )
     $ClusterApplicationName = "SCDPM2016"
-    Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName -UseDesiredStateConfiguration
+    Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
     $Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
 }
 
