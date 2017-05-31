@@ -1,14 +1,20 @@
 ﻿#Requires -modules TervisPowerShellJobs
 
 $TervisDPMServers= [pscustomobject][ordered]@{
-    DPmServerName="DPM2012R2-1"
-    Description = "FileServer Backups"
+    DPmServerName="INF-SCDPM201601"
+    Description = "SQL/Exchange Datasources "
     Role = "Primary"
     Location = "HQ"
 },
 [pscustomobject][ordered]@{
-    DPmServerName="DPM2012R2-2"
-    Description = "Offsite Secondary"
+    DPmServerName="INF-SCDPM201602"
+    Description = "Fileserver,Data Drive Datasources"
+    Role = "Primary"
+    Location = "HQ"
+},
+[pscustomobject][ordered]@{
+    DPmServerName="INF-SCDPM201603"
+    Description = "Secondary Off-Site"
     Role = "Secondary"
     Location = "Peak10"
 },
@@ -65,15 +71,14 @@ function Get-TervisStoreDatabaseLogFileUsage {
 }
 
 function Get-BackOfficeComputersNotProtectedByDPM {
-    $DaysInactive = 15  
-    $LastLogonStartDateRange = (Get-Date).Adddays(-($DaysInactive)) 
-    $DPMServerName = "dpm2012r2-1.tervis.prv"
-    
-    $DPMProtectedStores = Invoke-Command -ComputerName $DPMServerName -ScriptBlock {Get-DPMProtectionGroup | where name -eq "stores-bo" | Get-Datasource | select computer}
-    $BOComputerListFromAD = Get-ADComputer -SearchBase "OU=Back Office Computers,OU=Remote Store Computers,OU=Computers,OU=Stores,OU=Departments,DC=tervis,DC=prv" -Filter {LastLogonTimeStamp -gt $LastLogonStartDateRange} -Properties LastLogonTimeStamp 
-    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
-    $BOComputerListFromADWithoutExceptions = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
-    Compare-Object $DPMProtectedStores.computer $BOComputerListFromADWithoutExceptions.name
+    param (
+        $DPMServerName = "inf-scdpm201601.tervis.prv"
+    )
+    $DPMProtectedStores = Invoke-Command -ComputerName $DPMServerName -ScriptBlock {Get-DPMProtectionGroup | where name -match "stores" | Get-Datasource | select computer}
+    $BOComputerListFromAD = Get-BackOfficeComputers
+    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","hambo-vm","dlt-gkjono7","inf-dontestbo"
+    $BOComputerListFromADWithoutExceptions = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
+    Compare-Object $DPMProtectedStores.computer $BOComputerListFromADWithoutExceptions
 }
 
 Function Get-StaleRecoveryPointsFromDPM {
@@ -377,22 +382,4 @@ Function Get-PendingReboot {
     
 }## End Function Get-PendingReboot
 
-function Invoke-ProvisionDPMServer {
-    param (
-        [parameter(Mandatory)] [string] $Computername,
-        [switch] $Restart
-    )
-        
-    invoke-command -ComputerName $ComputerName -ScriptBlock {Set-NetFirewallProfile -Name domain -Enabled False}
-    $ConfigPath = "\\fs1\disasterrecovery\Source Controlled Items\WindowsPowerShell\Desired State Configurations\Configuration Files\Base Configurations"
-    $DPMServerDSCConfigurationFile = "$ConfigPath\DPMServerBase.ps1"
-    New-Item -Path $ConfigPath\DPMServerBase -ItemType Directory
-    . $DPMServerDSCConfigurationFile
-    DPMServerBase -Computername $ComputerName -OutputPath $ConfigPath\DPMServerBase
-    Start-DscConfiguration -path $ConfigPath\DPMServerBase -Wait -Verbose -Force
-    remove-item -path $configpath\DPMServerBase -recurse -force
-    if($Restart) {
-        Restart-Computer -ComputerName $Computername -Force
-    }
-}
 
