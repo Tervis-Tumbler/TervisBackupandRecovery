@@ -53,19 +53,23 @@ function Invoke-SCDPM2016Provision {
 function Get-TervisStoreDatabaseLogFileUsage {
     $BOComputerListFromAD = Get-BackOfficeComputers 
     $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
-    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM"
-    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_.name}
+    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
+    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
     
     Start-ParallelWork -ScriptBlock {
         param($Computer,$StoreBOSACred)
             $DBExceptions = "master","tempdb","model","msdb" 
             $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
             $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+            $StoreDBName = $StoreDB.'Database Name'    
+            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
+
             [pscustomobject][ordered]@{
                 "Computername" = $Computer
                 "Database Name" = $StoreDB.'Database Name'
                 "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
                 "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
+                "Recovery Model" = $RecoveryModel."recovery model"
             }
     } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
 }
@@ -160,6 +164,43 @@ function Install-SoftwareRemotePowershell5{
             "Pending Windows Update Reboot" = $PendingReboot.WindowsUpdate
         }
     } | select * -ExcludeProperty RunspaceId | ft
+}
+
+function Test-RMSHQLogFileUtilization{
+    $OutputMessage = ""
+    $FromAddress = "scheduledtasks@tervis.com"
+    #$ToAddress = "WindowsServerApplicationsAdministrator@tervis.com"
+    $ToAddress = "dmohlmaster@tervis.com"
+    $Subject = "TERVIS_RMSHQ1 Database Log File Above Threshold"
+    $SMTPServer = "cudaspam.tervis.com"
+    $LogFileThreshold = .1
+    $Computer = "SQL"
+    $AllDB = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)"
+    $RMSHQLogUtilization = ($AllDB | Where {$_.'database name' -eq "TERVIS_RMSHQ1"})."log space used (%)"
+    
+    if ($RMSHQLogUtilization -gt $LogFileThreshold){
+        $OutputMessage += "TERVIS_RMSHQ1 Log Utilization is currently {0:N2}" -f $RMSHQLogUtilization + "%`n"
+    }
+    if ($OutputMessage){
+        Send-MailMessage -From $FromAddress -to $ToAddress -subject $Subject -SmtpServer $SMTPServer -Body ($OutputMessage | FT -autosize | out-string -Width 200) 
+    }
+}
+
+function Install-RMSHQLogFileUtilizationScheduledTasks {
+    param (
+        [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$ComputerName
+    )
+    begin {
+        $ScheduledTaskCredential = New-Object System.Management.Automation.PSCredential (Get-PasswordstateCredential -PasswordID 259)
+        $Execute = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+        $Argument = -NoProfile -Command 'Test-RMSHQLogFileUtilization'
+    }
+    process {
+        $CimSession = New-CimSession -ComputerName $ComputerName
+        If (-NOT (Get-ScheduledTask -TaskName PushExplorerFavorites -CimSession $CimSession -ErrorAction SilentlyContinue)) {
+            Install-TervisScheduledTask -Credential $ScheduledTaskCredential -TaskName "RMSHQ LogFile Utilization Monitor" -Execute $Execute -Argument $Argument -RepetitionIntervalName EverWorkdayDuringTheDayEvery15Minutes -ComputerName $ComputerName
+        }
+    }
 }
 
 Function Get-PendingReboot {
