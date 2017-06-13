@@ -172,7 +172,7 @@ function Test-RMSHQLogFileUtilization{
     $ToAddress = "WindowsServerApplicationsAdministrator@tervis.com"
     $Subject = "TERVIS_RMSHQ1 Database Log File Above Threshold"
     $SMTPServer = "cudaspam.tervis.com"
-    $LogFileThreshold = .1
+    $LogFileThreshold = 10
     $Computer = "SQL.tervis.prv"
     $AllDB = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)"
     $RMSHQLogUtilization = ($AllDB | Where {$_.'database name' -eq "TERVIS_RMSHQ1"})."log space used (%)"
