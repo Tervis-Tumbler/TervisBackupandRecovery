@@ -1,4 +1,4 @@
-﻿#Requires -modules TervisPowerShellJobs
+﻿
 
 $TervisDPMServers= [pscustomobject][ordered]@{
     DPmServerName="INF-SCDPM201601"
@@ -193,12 +193,12 @@ function Install-RMSHQLogFileUtilizationScheduledTasks {
     begin {
         $ScheduledTaskCredential = New-Object System.Management.Automation.PSCredential (Get-PasswordstateCredential -PasswordID 259)
         $Execute = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
-        $Argument = -NoProfile -Command 'Test-RMSHQLogFileUtilization'
+        $Argument = '-NoProfile -Command Test-RMSHQLogFileUtilization'
     }
     process {
         $CimSession = New-CimSession -ComputerName $ComputerName
-        If (-NOT (Get-ScheduledTask -TaskName PushExplorerFavorites -CimSession $CimSession -ErrorAction SilentlyContinue)) {
-            Install-TervisScheduledTask -Credential $ScheduledTaskCredential -TaskName "RMSHQ LogFile Utilization Monitor" -Execute $Execute -Argument $Argument -RepetitionIntervalName EverWorkdayDuringTheDayEvery15Minutes -ComputerName $ComputerName
+        If (-NOT (Get-ScheduledTask -TaskName Test-RMSHQLogFileUtilization -CimSession $CimSession -ErrorAction SilentlyContinue)) {
+            Install-TervisScheduledTask -Credential $ScheduledTaskCredential -TaskName "RMSHQLogFileUtilizationMonitor" -Execute $Execute -Argument $Argument -RepetitionIntervalName EverWorkdayDuringTheDayEvery15Minutes -ComputerName $ComputerName
         }
     }
 }
