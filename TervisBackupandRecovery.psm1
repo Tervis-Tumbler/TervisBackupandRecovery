@@ -169,12 +169,11 @@ function Install-SoftwareRemotePowershell5{
 function Test-RMSHQLogFileUtilization{
     $OutputMessage = ""
     $FromAddress = "scheduledtasks@tervis.com"
-    #$ToAddress = "WindowsServerApplicationsAdministrator@tervis.com"
-    $ToAddress = "dmohlmaster@tervis.com"
+    $ToAddress = "WindowsServerApplicationsAdministrator@tervis.com"
     $Subject = "TERVIS_RMSHQ1 Database Log File Above Threshold"
     $SMTPServer = "cudaspam.tervis.com"
     $LogFileThreshold = .1
-    $Computer = "SQL"
+    $Computer = "SQL.tervis.prv"
     $AllDB = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)"
     $RMSHQLogUtilization = ($AllDB | Where {$_.'database name' -eq "TERVIS_RMSHQ1"})."log space used (%)"
     
