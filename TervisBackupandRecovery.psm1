@@ -423,3 +423,25 @@ Function Get-PendingReboot {
 }## End Function Get-PendingReboot
 
 
+function Invoke-AttachDPMProductionServer {
+    [CmdletBinding()]
+    param(
+        [parameter(Mandatory)] $Computername,
+        [parameter(Mandatory)] $DPMServerName
+    )
+    $SCDPMCredential = Get-PasswordstateCredential -PasswordID 4037 -AsPlainText
+    $AttachProductionServerScriptPath = 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\Attach-ProductionServer.ps1'
+    Invoke-Command -ComputerName $dpmservername -ScriptBlock {
+         param ($DPMServerName,$Computername,$UserName,$Password,$SCDPMCredential)
+         & 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\Attach-ProductionServer.ps1' -DPMServerName $DPMServerName -PSName $Computername -UserName $SCDPMCredential.Username -Password $SCDPMCredential.Password -Domain tervis.prv
+    } -ArgumentList $DPMServerName,$Computername,$UserName,$Password,$SCDPMCredential
+}
+
+function Invoke-SetDPMServernameOnRemoteComputer {
+    [CmdletBinding()]
+    param(
+        [parameter(Mandatory)] $Computername,
+        [parameter(Mandatory)] $DPMServerName
+    )
+    & "psexec -e "\\$Computername" -s 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\setdpmservername.ps1 -DPMServerName $DPMServerName' "
+}
