@@ -431,10 +431,10 @@ function Invoke-AttachDPMProductionServer {
     )
     $SCDPMCredential = Get-PasswordstateCredential -PasswordID 4037 -AsPlainText
     $AttachProductionServerScriptPath = 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\Attach-ProductionServer.ps1'
-    Invoke-Command -ComputerName $dpmservername -ScriptBlock {
-         param ($DPMServerName,$Computername,$UserName,$Password,$SCDPMCredential)
-         & 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\Attach-ProductionServer.ps1' -DPMServerName $DPMServerName -PSName $Computername -UserName $SCDPMCredential.Username -Password $SCDPMCredential.Password -Domain tervis.prv
-    } -ArgumentList $DPMServerName,$Computername,$UserName,$Password,$SCDPMCredential
+    
+    Invoke-Command -ComputerName $dpmservername -ScriptBlock {         
+         & 'C:\Program Files\Microsoft System Center 2016\DPM\DPM\bin\Attach-ProductionServer.ps1' -DPMServerName $Using:DPMServerName -PSName $Using:Computername -UserName $Using:SCDPMCredential.Username -Password $Using:SCDPMCredential.Password -Domain tervis.prv
+    }
 }
 
 function Invoke-SetDPMServernameOnRemoteComputer {
