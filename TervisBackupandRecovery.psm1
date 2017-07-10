@@ -54,7 +54,7 @@ function Invoke-SCDPM2016FSProvision {
     param (
         $EnvironmentName
     )
-    $ClusterApplicationName = "SCDPM2016FS"
+    $ClusterApplicationName = "SCDPM2016FileServer"
     Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
     #$Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
 }
