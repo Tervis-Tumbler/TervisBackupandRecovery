@@ -50,6 +50,15 @@ function Invoke-SCDPM2016Provision {
     #$Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
 }
 
+function Invoke-SCDPM2016FSProvision {
+    param (
+        $EnvironmentName
+    )
+    $ClusterApplicationName = "SCDPM2016FS"
+    Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
+    #$Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
+}
+
 function Get-TervisStoreDatabaseLogFileUsage {
     $BOComputerListFromAD = Get-BackOfficeComputers 
     $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
