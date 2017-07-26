@@ -45,18 +45,18 @@ function Invoke-SCDPM2016Provision {
     param (
         $EnvironmentName
     )
-    $ClusterApplicationName = "SCDPM2016"
-    Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
-    #$Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
+    $ApplicationName = "SCDPM2016"
+    Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
 }
 
 function Invoke-SCDPM2016FSProvision {
     param (
         $EnvironmentName
     )
-    $ClusterApplicationName = "SCDPM2016FileServer"
-    Invoke-ClusterApplicationProvision -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
-    #$Nodes = Get-TervisClusterApplicationNode -ClusterApplicationName $ClusterApplicationName -EnvironmentName $EnvironmentName
+    $ApplicationName = "SCDPM2016FileServer"
+    Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
