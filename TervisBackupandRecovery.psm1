@@ -65,6 +65,18 @@ function Invoke-SCDPM2016FSProvision {
     $Nodes | New-SQLNetFirewallRule
 }
 
+function Invoke-SCDPM2016FSProvision {
+    param (
+        $EnvironmentName
+    )
+    $ApplicationName = "SCDPM2016SQL"
+    Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
+    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
+    $Nodes | New-SQLNetFirewallRule
+}
+
 function Get-TervisStoreDatabaseLogFileUsage {
     $BOComputerListFromAD = Get-BackOfficeComputers 
     $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
