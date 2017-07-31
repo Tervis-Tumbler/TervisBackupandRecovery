@@ -453,7 +453,7 @@ function Invoke-DPMSQLServer2014Install {    [CmdletBinding(SupportsShouldProce
         ReportingMachineName = "localhost"
         ReportingInstanceName = "mssqlserver"
 "@    }    Process {        Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {            $TempFile = [io.path]::GetTempFileName() 
-            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile            choco install -y "\\tervis.prv\Applications\Chocolatey\SCDPM2016.1.0.1.nupkg" --package-parameters=$($ChocolateyPackageParameters)#            $Argumentlist = "/i /f $tempFile /l c:\users\dmohlmaster\downloads\dpminstall.log"#            Start-Process -FilePath "$using:DPMInstallSourcePath\setup.exe" -Args $Argumentlist -Wait -NoNewWindow            Remove-Item $tempFile        }    }}
+            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile            Remove-Item $tempFile        }    }}
 $DPMProtectionGroupDefinitions = [PSCustomObject][Ordered] @{
     Name = "1010OSBO3-pc"
 },
