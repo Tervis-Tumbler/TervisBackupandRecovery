@@ -72,9 +72,9 @@ function Invoke-SCDPM2016SQLProvision {
     $ApplicationName = "SCDPM2016SQL"
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
-    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
-    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
-    $Nodes | New-SQLNetFirewallRule
+#    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
+#    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
+#    $Nodes | New-SQLNetFirewallRule
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
