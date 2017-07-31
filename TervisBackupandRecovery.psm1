@@ -65,7 +65,7 @@ function Invoke-SCDPM2016FSProvision {
     $Nodes | New-SQLNetFirewallRule
 }
 
-function Invoke-SCDPM2016FSProvision {
+function Invoke-SCDPM2016SQLProvision {
     param (
         $EnvironmentName
     )
