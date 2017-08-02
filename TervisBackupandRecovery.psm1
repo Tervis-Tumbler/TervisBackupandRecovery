@@ -452,9 +452,9 @@ Function Get-PendingReboot {
 function Invoke-DPMSQLServer2014Install {    [CmdletBinding(SupportsShouldProcess)]
     param (        [Parameter(Mandatory,ValueFromPipeline)]$Node
     )
-    $ClusterApplicationName = $node.ClusterApplicationName    $ClusterApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ClusterApplicationName     $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ClusterApplicationDefinition.Environments).SQLSAPassword -AsPlainText    $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ClusterApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText    $ChocolateyPackageParameters = "/SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"    Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {        choco install -y "\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg" --package-parameters=$($using:ChocolateyPackageParameters)    }}function Invoke-DPMServer2016Install {    param (        [Parameter(Mandatory)]$Node
+    $ApplicationName = $node.ApplicationName    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName     $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText    $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText    $ChocolateyPackageParameters = "/SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"    Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {        choco install -y "\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg" --package-parameters=$($using:ChocolateyPackageParameters)    }}function Invoke-DPMServer2016Install {    param (        [Parameter(Mandatory)]$Node
     )
-        Begin {        $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password        $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ClusterApplicationDefinition.Environments).SQLSAPassword -AsPlainText        $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"        
+        Begin {        $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName         $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password        $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText        $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"        
         $DPMInstallConfigFile = @"
         [OPTIONS]
         UserName = "Tervis"
@@ -471,4 +471,19 @@ $DPMProtectionGroupDefinitions = [PSCustomObject][Ordered] @{
 },
 [PSCustomObject][Ordered] @{
     Name = "Oracle"
+}
+
+
+function Get-TervisStoreDatabaseInformation {
+    param(
+        [parameter(Mandatory)]$Computername
+    )
+    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+    $StoreNumber = -join $Computername[0..3]
+    $DBExceptions = "master","tempdb","model","msdb" 
+    $DatabaseName = (Invoke-SQL -dataSource $Computername -database "master" -sqlCommand "select name from sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')" -Credential $StoreBOSACred).name
+    [PSCustomObject][Ordered] @{
+        DatabaseName = $DatabaseName
+        StoreName = (Invoke-SQL -dataSource $Computername -database $DatabaseName -sqlCommand "select name from dbo.store WHERE id LIKE $StoreNumber" -Credential $StoreBOSACred).name
+    }
 }
