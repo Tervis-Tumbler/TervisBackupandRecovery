@@ -460,9 +460,9 @@ function Invoke-DPMSQLServer2014Install {    [CmdletBinding(SupportsShouldProce
         UserName = "Tervis"
         CompanyName = "Tervis"
         ProductKey = $DPMProductKey
-        SQLMachineName = "localhost"
+        SQLMachineName = "$($Node.Computername)"
         SQLInstanceName = "mssqlserver"
-        ReportingMachineName = "localhost"
+        ReportingMachineName = "$($Node.ComputerName)"
         ReportingInstanceName = "mssqlserver"
 "@    }    Process {        Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {            $TempFile = [io.path]::GetTempFileName() 
             $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile            Remove-Item $tempFile        }    }}
