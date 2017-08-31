@@ -160,7 +160,7 @@ Start-ParallelWork -Parameters $Computername -ScriptBlock {
         }
         $Version = Invoke-Command -ComputerName $Computer -ScriptBlock {$PSVersionTable.PSVersion}
         $Chocolatey = Invoke-Command -ComputerName $Computer -ScriptBlock {Get-Command choco -erroraction SilentlyContinue | Out-Null; $?}
-        $PendingReboot = (Get-PendingReboot $Computer)
+        $PendingReboot = (Get-PendingRestart $Computer)
         $HotfixInstalled = Invoke-Command -ComputerName $Computer -ScriptBlock {get-hotfix -Id kb3191566 -ErrorAction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
             ComputerName = $Computer
@@ -182,7 +182,7 @@ function Install-SoftwareRemotePowershell5{
     Start-ParallelWork -Parameters $Computerlist -ScriptBlock {
         param($Computer)
         psexec -s \\$Computer -e choco install powershell -y | Out-Null
-        $PendingReboot = (Get-PendingReboot $Computer)
+        $PendingReboot = (Get-PendingRestart $Computer)
         $HotfixInstalled = Invoke-Command -ComputerName $Computer -ScriptBlock {get-hotfix -Id kb3191566 -ErrorAction SilentlyContinue | Out-Null; $?}
         [pscustomobject][ordered]@{
             ComputerName = $Computer
