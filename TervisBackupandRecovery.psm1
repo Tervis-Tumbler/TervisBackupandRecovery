@@ -41,7 +41,52 @@ function Invoke-SCDPM2016SQLProvision {
     )
     $ApplicationName = "SCDPM2016SQL"
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
-    #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $Nodes[1] | Invoke-DPMSQLServer2014Install
+#    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
+#    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
+#    $Nodes | New-SQLNetFirewallRule
+}
+
+function Get-TervisStoreDatabaseLogFileUsage {
+    $BOComputerListFromAD = Get-BackOfficeComputers 
+    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
+    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
+    
+    Start-ParallelWork -ScriptBlock {
+        param($Computer,$StoreBOSACred)
+            $DBExceptions = "master","tempdb","model","msdb" 
+            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
+            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+            $StoreDBName = $StoreDB.'Database Name'    
+            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
+
+            [pscustomobject][ordered]@{
+                "Computername" = $Computer
+                "Database Name" = $StoreDB.'Database Name'
+                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
+                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
+                "Recovery Model" = $RecoveryModel."recovery model"
+            }
+    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
+}
+
+function Invoke-SCDPMOraBackupServerProvision {
+    param (
+        $EnvironmentName = "Infrastructure"
+    )
+    $ApplicationName = "SCDPMOraBackups"
+    $TervisApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName
+    Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
+    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
+    Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccount.Username
+    $Nodes | Update-TervisSNMPConfiguration
+    $Nodes | Invoke-ClaimMPOI
+    $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
+    $Nodes | Invoke-DPMSQLServer2014Install
 #    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
 #    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
 #    $Nodes | New-SQLNetFirewallRule
@@ -204,7 +249,40 @@ function Invoke-DPMSQLServer2014Install {
     param (
         [Parameter(Mandatory,ValueFromPipeline)]$Node
     )
-    $ApplicationName = $node.ApplicationName    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName     $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText    $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText    $ChocolateyPackageParameters = "/SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"    Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {        choco install -y "\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg" --package-parameters=$($using:ChocolateyPackageParameters)    }}function Invoke-DPMServer2016Install {    param (        [Parameter(Mandatory)]$Node
+    $ApplicationName = $node.ApplicationName    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName     $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText    $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText    $ChocolateyPackageParameters = "/SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"    $PackageArgs = "/IAcceptSQLServerLicenseTerms` 
+    /ACTION=Install`
+    /ENU=1`
+    /QUIET=1`
+    /QUIETSIMPLE=0`
+    /UpdateEnabled=0`
+    /ERRORREPORTING=0`
+    /USEMICROSOFTUPDATE=1`
+    /FEATURES=SQLENGINE,RS,SSMS,ADV_SSMS`
+    /UpdateSource=MU`
+    /HELP=0`
+    /INDICATEPROGRESS=0`
+    /X86=0`
+    /INSTANCENAME=MSSQLSERVER`
+    /SQMREPORTING=0`
+    /INSTANCEID=MSSQLSERVER`
+    /RSINSTALLMODE=DefaultNativeMode`
+    /AGTSVCSTARTUPTYPE=Automatic`
+    /COMMFABRICPORT=0`
+    /COMMFABRICNETWORKLEVEL=0`
+    /COMMFABRICENCRYPTION=0`
+    /MATRIXCMBRICKCOMMPORT=0`
+    /SQLSVCSTARTUPTYPE=Automatic`
+    /FILESTREAMLEVEL=0`
+    /ENABLERANU=0`
+    /SQLCOLLATION=SQL_Latin1_General_CP1_CI_AS`
+    /SQLSYSADMINACCOUNTS=Privilege_InfrastructureSCDPM2016Administrator`
+    /SECURITYMODE=SQL`
+    /ADDCURRENTUSERASSQLADMIN=False`
+    /TCPENABLED=1`
+    /NPENABLED=0`
+    /BROWSERSVCSTARTUPTYPE=Disabled `
+    /RSSVCSTARTUPTYPE=Automatic
+    /SAPWD=$($SQLSACredentials.Password)`    /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username)`    /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password)`    /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username)`    /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password)`    /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username)`    /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"    Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {        choco install -y "\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg" --package-parameters=$($using:ChocolateyPackageParameters)    }}function Invoke-DPMServer2016Install {    param (        [Parameter(Mandatory)]$Node
     )
         Begin {        $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName         $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password        $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText        $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"        
         $DPMInstallConfigFile = @"
@@ -217,7 +295,7 @@ function Invoke-DPMSQLServer2014Install {
         ReportingMachineName = "$($Node.ComputerName)"
         ReportingInstanceName = "mssqlserver"
 "@    }    Process {        Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {            $TempFile = [io.path]::GetTempFileName() 
-            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile            Remove-Item $tempFile        }    }}
+            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile#            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile                        Remove-Item $tempFile        }    }}
 $DPMProtectionGroupDefinitions = [PSCustomObject][Ordered] @{
     Name = "1010OSBO3-pc"
 },
