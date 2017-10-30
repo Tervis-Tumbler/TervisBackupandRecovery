@@ -87,6 +87,7 @@ function Invoke-SCDPMOraBackupServerProvision {
     $Nodes | Invoke-ClaimMPOI
     $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
     $Nodes | Invoke-DPMSQLServer2014Install
+    $Nodes | Invoke- 
 #    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
 #    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
 #    $Nodes | New-SQLNetFirewallRule
@@ -295,7 +296,7 @@ function Invoke-DPMSQLServer2014Install {
         ReportingMachineName = "$($Node.ComputerName)"
         ReportingInstanceName = "mssqlserver"
 "@    }    Process {        Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {            $TempFile = [io.path]::GetTempFileName() 
-            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile#            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile                        Remove-Item $tempFile        }    }}
+            $ChocolateyPackageParameters = "/i /f $Tempfile"            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile#            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile            $ChocolateyPackageParameters = "/i /f $TempFile"            choco install -y "\\tervis.prv\applications\Chocolatey\SCDPM2016.1.0.2.nupkg" --package-parameters=$ChocolateyPackageParameters                        Remove-Item $tempFile        }    }}
 $DPMProtectionGroupDefinitions = [PSCustomObject][Ordered] @{
     Name = "1010OSBO3-pc"
 },
