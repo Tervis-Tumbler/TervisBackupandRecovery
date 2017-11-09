@@ -49,7 +49,7 @@ function Invoke-SCDPM2016SQLProvision {
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
-    $BOComputerListFromAD = Get-BackOfficeComputers 
+    $BOComputerListFromAD = Get-BackOfficeComputers -Online
     $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
     $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
     $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
