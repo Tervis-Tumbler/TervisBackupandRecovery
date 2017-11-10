@@ -318,3 +318,12 @@ function Get-TervisStoreDatabaseInformation {
         StoreName = (Invoke-SQL -dataSource $Computername -database $DatabaseName -sqlCommand "select name from dbo.store WHERE id LIKE $StoreNumber" -Credential $StoreBOSACred).name
     }
 }
+
+function Get-DPMServers {
+    $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
+    foreach($Computer in $DPMServers) {            
+        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
+            get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty Name
+    }
+}
+
