@@ -93,29 +93,29 @@ function Invoke-SCDPMOraBackupServerProvision {
 #    $Nodes | New-SQLNetFirewallRule
 }
 
-function Get-TervisStoreDatabaseLogFileUsage {
-    $BOComputerListFromAD = Get-BackOfficeComputers 
-    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
-    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
-    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
-    
-    Start-ParallelWork -ScriptBlock {
-        param($Computer,$StoreBOSACred)
-            $DBExceptions = "master","tempdb","model","msdb" 
-            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
-            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
-            $StoreDBName = $StoreDB.'Database Name'    
-            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
-
-            [pscustomobject][ordered]@{
-                "Computername" = $Computer
-                "Database Name" = $StoreDB.'Database Name'
-                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
-                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
-                "Recovery Model" = $RecoveryModel."recovery model"
-            }
-    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
-}
+#function Get-TervisStoreDatabaseLogFileUsage {
+#    $BOComputerListFromAD = Get-BackOfficeComputers -online
+#    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+#    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
+#    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
+#    
+#    Start-ParallelWork -ScriptBlock {
+#        param($Computer,$StoreBOSACred)
+#            $DBExceptions = "master","tempdb","model","msdb" 
+#            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
+#            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+#            $StoreDBName = $StoreDB.'Database Name'    
+#            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
+#
+#            [pscustomobject][ordered]@{
+#                "Computername" = $Computer
+#                "Database Name" = $StoreDB.'Database Name'
+#                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
+#                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
+#                "Recovery Model" = $RecoveryModel."recovery model"
+#            }
+#    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
+#}
 
 function Get-BackOfficeComputersNotProtectedByDPM {
     param (
