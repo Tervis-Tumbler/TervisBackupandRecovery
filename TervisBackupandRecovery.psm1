@@ -129,15 +129,16 @@ function Get-BackOfficeComputersNotProtectedByDPM {
 }
 
 Function Get-StaleRecoveryPointsFromDPM {
-    param (
-        [Parameter(Mandatory)]$DPMServerName
-    )
+#    param (
+#        [Parameter(Mandatory)]$DPMServerName
+#    )
     $ScriptBlock = {
         $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
         Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint,state | Out-Null
         Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint -ExcludeProperty PSComputerName,RunspaceID
     }
-    Invoke-Command -ComputerName $DPMServerName -ScriptBlock $ScriptBlock
+    $DPMServers = Get-DPMServers
+    $DPMServers | %{Invoke-Command -ComputerName $_ -ScriptBlock $ScriptBlock}
 }
 
 Function Get-DPMErrorLog{
@@ -323,7 +324,7 @@ function Get-DPMServers {
     $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
     foreach($Computer in $DPMServers) {            
         $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
-            get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty Name
+            get-adcomputer -Identity $ComputerObjectPath | where name -ne "inf-scdpmsql02" | select -ExpandProperty Name
     }
 }
 
