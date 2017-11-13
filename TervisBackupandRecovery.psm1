@@ -21,6 +21,7 @@ function Invoke-SCDPM2016Provision {
     $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
     $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
     $Nodes | New-SQLNetFirewallRule
+    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 }
 
 function Invoke-SCDPM2016FSProvision {
@@ -33,6 +34,7 @@ function Invoke-SCDPM2016FSProvision {
     $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
     $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
     $Nodes | New-SQLNetFirewallRule
+    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 }
 
 function Invoke-SCDPM2016SQLProvision {
@@ -46,6 +48,7 @@ function Invoke-SCDPM2016SQLProvision {
 #    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
 #    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
 #    $Nodes | New-SQLNetFirewallRule
+    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
@@ -88,6 +91,7 @@ function Invoke-SCDPMOraBackupServerProvision {
     $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
     $Nodes | Invoke-DPMSQLServer2014Install
     $Nodes | Invoke-DPMServer2016Install
+    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 #    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
 #    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
 #    $Nodes | New-SQLNetFirewallRule
