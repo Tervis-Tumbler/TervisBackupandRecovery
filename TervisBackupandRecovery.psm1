@@ -52,7 +52,7 @@ function Invoke-SCDPM2016SQLProvision {
 }
 
 function Get-TervisStoreDatabaseLogFileUsage {
-    $BOComputerListFromAD = Get-BackOfficeComputers 
+    $BOComputerListFromAD = Get-BackOfficeComputers -Online
     $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
     $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
     $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
@@ -97,29 +97,29 @@ function Invoke-SCDPMOraBackupServerProvision {
 #    $Nodes | New-SQLNetFirewallRule
 }
 
-function Get-TervisStoreDatabaseLogFileUsage {
-    $BOComputerListFromAD = Get-BackOfficeComputers 
-    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
-    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
-    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
-    
-    Start-ParallelWork -ScriptBlock {
-        param($Computer,$StoreBOSACred)
-            $DBExceptions = "master","tempdb","model","msdb" 
-            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
-            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
-            $StoreDBName = $StoreDB.'Database Name'    
-            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
-
-            [pscustomobject][ordered]@{
-                "Computername" = $Computer
-                "Database Name" = $StoreDB.'Database Name'
-                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
-                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
-                "Recovery Model" = $RecoveryModel."recovery model"
-            }
-    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
-}
+#function Get-TervisStoreDatabaseLogFileUsage {
+#    $BOComputerListFromAD = Get-BackOfficeComputers -online
+#    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+#    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
+#    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
+#    
+#    Start-ParallelWork -ScriptBlock {
+#        param($Computer,$StoreBOSACred)
+#            $DBExceptions = "master","tempdb","model","msdb" 
+#            $dblist = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "dbcc sqlperf(logspace)" -Credential $StoreBOSACred
+#            $StoreDB = $dblist | Where {$DBExceptions -notcontains $_.'database name'}
+#            $StoreDBName = $StoreDB.'Database Name'    
+#            $RecoveryModel = Invoke-SQL -dataSource $Computer -database "master" -sqlCommand "SELECT DATABASEPROPERTYEX('$StoreDBName', 'RECOVERY') AS [Recovery Model]" -Credential $StoreBOSACred
+#
+#            [pscustomobject][ordered]@{
+#                "Computername" = $Computer
+#                "Database Name" = $StoreDB.'Database Name'
+#                "Log Size (MB)" = "{0:0.00}" -f $StoreDB.'Log Size (MB)'
+#                "Log Consumed (%)" = "{0:.00}" -f $StoreDB.'Log Space Used (%)'
+#                "Recovery Model" = $RecoveryModel."recovery model"
+#            }
+#    } -Parameters $BOComputerListFromAD -OptionalParameters $StoreBOSACred | select * -ExcludeProperty RunspaceId | ft
+#}
 
 function Get-BackOfficeComputersNotProtectedByDPM {
     param (
@@ -133,15 +133,16 @@ function Get-BackOfficeComputersNotProtectedByDPM {
 }
 
 Function Get-StaleRecoveryPointsFromDPM {
-    param (
-        [Parameter(Mandatory)]$DPMServerName
-    )
+#    param (
+#        [Parameter(Mandatory)]$DPMServerName
+#    )
     $ScriptBlock = {
         $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
         Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint,state | Out-Null
         Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint -ExcludeProperty PSComputerName,RunspaceID
     }
-    Invoke-Command -ComputerName $DPMServerName -ScriptBlock $ScriptBlock
+    $DPMServers = Get-DPMServers
+    $DPMServers | %{Invoke-Command -ComputerName $_ -ScriptBlock $ScriptBlock}
 }
 
 Function Get-DPMErrorLog{
@@ -322,3 +323,12 @@ function Get-TervisStoreDatabaseInformation {
         StoreName = (Invoke-SQL -dataSource $Computername -database $DatabaseName -sqlCommand "select name from dbo.store WHERE id LIKE $StoreNumber" -Credential $StoreBOSACred).name
     }
 }
+
+function Get-DPMServers {
+    $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
+    foreach($Computer in $DPMServers) {            
+        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
+            get-adcomputer -Identity $ComputerObjectPath | where name -ne "inf-scdpmsql02" | select -ExpandProperty Name
+    }
+}
+
