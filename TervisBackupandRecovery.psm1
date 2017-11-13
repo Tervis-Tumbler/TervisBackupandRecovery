@@ -128,17 +128,29 @@ function Get-BackOfficeComputersNotProtectedByDPM {
     Compare-Object $DPMProtectedStores.computer $BOComputerListFromADWithoutExceptions
 }
 
-Function Get-StaleRecoveryPointsFromDPM {
-#    param (
-#        [Parameter(Mandatory)]$DPMServerName
-#    )
-    $ScriptBlock = {
-        $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
-        Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint,state | Out-Null
-        Get-DPMDatasource | Where-Object { $_.LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed -and $_.state -eq 'Valid'} | select computer,name,latestrecoverypoint -ExcludeProperty PSComputerName,RunspaceID
-    }
+Function Get-StaleRecoveryPointsFromDPM { 
     $DPMServers = Get-DPMServers
-    $DPMServers | %{Invoke-Command -ComputerName $_ -ScriptBlock $ScriptBlock}
+    $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
+    $DateTimeLowerBound = (Get-Date).AddYears(-10)
+    foreach ($Server in $DPMServers) {
+        Connect-DPMServer -DPMServerName $Server -WarningAction SilentlyContinue | Out-Null
+        $DPMDataSource = Get-DPMDatasource -DPMServerName $Server -Verbose
+        $DPMDataSource | select latestrecoverypoint | Out-Null        
+        for ($i = 0; $i -lt $DPMDataSource.Length; $i++) {
+        Write-Progress -Activity "Getting latest recovery points from $Server" -PercentComplete ($i*100/$DPMDataSource.Length) -Status "$i/$($DPMDataSource.Length)" -Id 0
+            if ($DPMDataSource[$i].State -eq 'Valid') {
+                while ($DPMDataSource[$i].LatestRecoveryPoint -lt $DateTimeLowerBound) {
+                    sleep -Milliseconds 1
+                }
+            }
+        }
+        Write-Progress -Id 0 -Activity "Getting Latest Recovery Points" -Completed
+        $DPMDataSource | 
+            ? State -eq Valid | 
+            ? LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed |
+            select DPMServerName,Computer,Name,LatestRecoveryPoint
+    }
+    Disconnect-DPMServer
 }
 
 Function Get-DPMErrorLog{
