@@ -26,15 +26,17 @@ function Invoke-SCDPM2016Provision {
 
 function Invoke-SCDPM2016FSProvision {
     param (
-        $EnvironmentName
+        $EnvironmentName = "infrastructure"
     )
     $ApplicationName = "SCDPM2016FileServer"
     $TervisApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
-    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
-    Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccount.Username
+    #$DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
+    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID ($TervisApplicationDefinition.environments).DPMServiceAccountPassword
+    $DPMServiceAccountUsername = ($DPMServiceAccount.username -split "\\")[1]
+    Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccountUsername
     $Nodes | Update-TervisSNMPConfiguration
     $Nodes | Invoke-ClaimMPOI
     $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
