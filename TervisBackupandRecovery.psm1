@@ -29,11 +29,17 @@ function Invoke-SCDPM2016FSProvision {
         $EnvironmentName
     )
     $ApplicationName = "SCDPM2016FileServer"
+    $TervisApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
-    #$Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
-    $Nodes | Set-SQLTCPEnabled -InstanceName CSI_Data -Architecture x86
-    $Nodes | Set-SQLTCPIPAllTcpPort -InstanceName CSI_Data -Architecture x86
-    $Nodes | New-SQLNetFirewallRule
+    $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
+    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
+    Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccount.Username
+    $Nodes | Update-TervisSNMPConfiguration
+    $Nodes | Invoke-ClaimMPOI
+    $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
+    $Nodes | Invoke-DPMSQLServer2014Install
+    $Nodes | Invoke-DPMServer2016Install
     $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 }
 
