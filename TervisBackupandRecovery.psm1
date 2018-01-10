@@ -42,7 +42,7 @@ function Invoke-SCDPM2016FSProvision {
     $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
     $Nodes | Invoke-DPMSQLServer2014Install
     $Nodes | Invoke-DPMServer2016Install
-    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
+#    $Nodes | Set-SQLSecurityBuiltInAdministratorsWithSysman
 }
 
 function Invoke-SCDPM2016SQLProvision {
@@ -293,7 +293,7 @@ function Invoke-DPMSQLServer2014Install {
     $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName 
     $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
     $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText
-    $ChocolateyPackageParameters = "/SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"
+    $ChocolateyPackageParameters = "/SQLSYSADMINACCOUNTS=BUILTIN\Administrators /SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"
     $PackageArgs = "/IAcceptSQLServerLicenseTerms` 
     /ACTION=Install`
     /ENU=1`
@@ -320,7 +320,7 @@ function Invoke-DPMSQLServer2014Install {
     /FILESTREAMLEVEL=0`
     /ENABLERANU=0`
     /SQLCOLLATION=SQL_Latin1_General_CP1_CI_AS`
-    /SQLSYSADMINACCOUNTS=Privilege_InfrastructureSCDPM2016Administrator`
+    /SQLSYSADMINACCOUNTS=BUILTIN\Administrators`
     /SECURITYMODE=SQL`
     /ADDCURRENTUSERASSQLADMIN=False`
     /TCPENABLED=1`
@@ -336,7 +336,7 @@ function Invoke-DPMSQLServer2014Install {
     /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"
 
     Invoke-Command -ComputerName $Node.ComputerName -ScriptBlock {
-        choco install -y "\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg" --package-parameters=$($using:ChocolateyPackageParameters)
+        choco install -y '\\tervis.prv\Applications\Chocolatey\SQLServer2014SP2.1.0.1.nupkg' --package-parameters=$($using:ChocolateyPackageParameters)
     }
 }
 
