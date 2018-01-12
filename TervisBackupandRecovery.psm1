@@ -345,37 +345,30 @@ function Invoke-DPMServer2016Install {
         [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$Computername,
         [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$ApplicationName
     )
-    
-    Begin {
-        $ApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName 
-        $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password
-        $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
-        $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"
+    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName 
+    $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password
+#    $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
+    $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"
         
-        $DPMInstallConfigFile = @"
-        [OPTIONS]
-        UserName = "Tervis"
-        CompanyName = "Tervis"
-        ProductKey = $DPMProductKey
-        SQLMachineName = "$Computername"
-        SQLInstanceName = "mssqlserver"
-        ReportingMachineName = "$ComputerName"
-        ReportingInstanceName = "mssqlserver"
+    $DPMInstallConfigFile = @"
+    [OPTIONS]
+    UserName = "Tervis"
+    CompanyName = "Tervis"
+    ProductKey = $DPMProductKey
+    SQLMachineName = "$Computername"
+    SQLInstanceName = "mssqlserver"
+    ReportingMachineName = "$ComputerName"
+    ReportingInstanceName = "mssqlserver"
 "@
-    }
-    Process {
-        Invoke-Command -ComputerName $ComputerName -ScriptBlock {
-            $TempFile = [io.path]::GetTempFileName() 
-            $ChocolateyPackageParameters = "/i /f $Tempfile"
-            $using:DPMInstallConfigFile | Out-File -FilePath $tempFile
-            & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile
-#            $ChocolateyPackageParameters = "/i /f $TempFile"
-#            choco install -y "\\tervis.prv\applications\Chocolatey\SCDPM2016.1.0.2.nupkg" --package-parameters=$ChocolateyPackageParameters
-
-            
-            Remove-Item $tempFile
+    Invoke-Command -ComputerName $ComputerName -ScriptBlock {
+        $TempFile = [io.path]::GetTempFileName() 
+        $ChocolateyPackageParameters = "/i /f $Tempfile"
+        $using:DPMInstallConfigFile | Out-File -FilePath $tempFile
+        & CMD.exe /C Start /wait $using:DPMInstallSourcePath\setup.exe /i /f $TempFile
+#       $ChocolateyPackageParameters = "/i /f $TempFile"
+        choco install -y "\\TERVIS.PRV\applications\Chocolatey\scdpm2016.2.0.0.nupkg" --package-parameters="/i /f $TempFile"
+        Remove-Item $tempFile
         }
-    }
 }
 
 $DPMProtectionGroupDefinitions = [PSCustomObject][Ordered] @{
