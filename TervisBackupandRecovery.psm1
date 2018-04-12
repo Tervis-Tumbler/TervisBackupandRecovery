@@ -145,7 +145,7 @@ function Get-BackOfficeComputersNotProtectedByDPM {
 Function Get-StaleRecoveryPointsFromDPM { 
     [cmdletbinding()]
     param()
-    $DPMServers = Get-DPMServers
+    $DPMServers = Get-DPMServers -Online
     $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
     $DateTimeLowerBound = (Get-Date).AddYears(-10)
     foreach ($Server in $DPMServers) {
@@ -396,10 +396,32 @@ function Get-TervisStoreDatabaseInformation {
 }
 
 function Get-DPMServers {
+    param(
+        [Switch]$Online
+    )
     $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
-    foreach($Computer in $DPMServers) {            
-        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
-            get-adcomputer -Identity $ComputerObjectPath | where name -ne "inf-scdpmsql02" | select -ExpandProperty Name
+#    foreach($Computer in $DPMServers) {            
+#        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
+#            $DPMServerNames = get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty name #| where name -ne "inf-scdpmsql02" | select -ExpandProperty Name
+#    }
+    $Responses = Start-ParallelWork -ScriptBlock {
+        param($Parameter)
+        $ComputerObjectPath = ($Parameter.DistinguishedName.split(",") | select -skip 1 ) -join ","
+        $DPMServerName = get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty name 
+        [pscustomobject][ordered]@{
+            DPMServerName = $DPMServerName;
+            Online = $(Test-Connection -ComputerName $DPMServerName -Count 1 -Quiet);
+        }
+    } -Parameters $DPMServers
+
+    if ($Online) {
+        $Responses |
+        where Online -EQ $true |
+        Select -ExpandProperty DPMServerName -ExcludeProperty RunspaceId
+    } else {
+        $Responses |
+        Select -ExpandProperty DPMServerName -ExcludeProperty RunspaceId
     }
+    #$Responses
 }
 
