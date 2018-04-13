@@ -145,40 +145,34 @@ function Get-BackOfficeComputersNotProtectedByDPM {
 Function Get-StaleRecoveryPointsFromDPM { 
     [cmdletbinding()]
     param()
+    Write-Verbose -Message "Getting DPM Servers from Active Directory"
     $DPMServers = Get-DPMServers -Online
+    Write-Verbose -Message "Comlete"
     $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
     $DateTimeLowerBound = (Get-Date).AddYears(-10)
-    foreach ($Server in $DPMServers) {
-        Write-Verbose -Message "Connecting to $Server"
+    Write-Verbose -Message "Fetching datasource information"
+    $DPMDataSource = Start-ParallelWork -ScriptBlock {
+        param($Server)
         Connect-DPMServer -DPMServerName $Server -WarningAction SilentlyContinue | Out-Null
-        Write-Verbose -Message "Connected to $Server"
-        Write-Verbose -Message "Fetching datasource information"
-        $DPMDataSource = Get-DPMDatasource -DPMServerName $Server -Verbose
-        Write-Verbose -Message "Done"
+        Get-DPMDatasource -DPMServerName $Server -Verbose
         $DPMDataSource | select latestrecoverypoint | Out-Null        
-        for ($i = 0; $i -lt $DPMDataSource.Length; $i++) {
-        Write-Progress -Activity "Getting latest recovery points from $Server" -PercentComplete ($i*100/$DPMDataSource.Length) -Status "$i/$($DPMDataSource.Length)" -Id 0
-            if ($DPMDataSource[$i].State -eq 'Valid') {
-                while ($DPMDataSource[$i].LatestRecoveryPoint -lt $DateTimeLowerBound) {
-                    sleep -Milliseconds 1
-                }
-            }
-        }
-        Write-Progress -Id 0 -Activity "Getting Latest Recovery Points" -Completed
-        if(-not($DPMDataSource | 
-            Where-Object State -eq Valid | 
-            Where-Object LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed |
-            Select-Object DPMServerName,Computer,Name,LatestRecoveryPoint)){
-            Write-Verbose -Message "No Stale Recovery Points Found"
-        }
-        else {
-            $DPMDataSource | 
-            Where-Object State -eq Valid | 
-            Where-Object LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed |
-            Select-Object DPMServerName,Computer,Name,LatestRecoveryPoint
-        }
         Disconnect-DPMServer
+    } -Parameters $DPMServers
+    Write-Verbose -Message "Complete"
+
+    if(-not($DPMDataSource | 
+        Where-Object State -eq Valid | 
+        Where-Object LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed |
+        Select-Object DPMServerName,Computer,Name,LatestRecoveryPoint)){
+        Write-Verbose -Message "No Stale Recovery Points Found"
     }
+    else {
+        $DPMDataSource | 
+        Where-Object State -eq Valid | 
+        Where-Object LatestRecoveryPoint -lt $OldestRecoveryPointTimeAllowed |
+        Select-Object DPMServerName,Computer,Name,LatestRecoveryPoint
+    }
+    
 }
 
 Function Get-DPMErrorLog{
@@ -400,19 +394,23 @@ function Get-DPMServers {
         [Switch]$Online
     )
     $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
+    $ADComputerObjects = Get-ADComputer -filter *
 #    foreach($Computer in $DPMServers) {            
 #        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
 #            $DPMServerNames = get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty name #| where name -ne "inf-scdpmsql02" | select -ExpandProperty Name
 #    }
     $Responses = Start-ParallelWork -ScriptBlock {
-        param($Parameter)
-        $ComputerObjectPath = ($Parameter.DistinguishedName.split(",") | select -skip 1 ) -join ","
-        $DPMServerName = get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty name 
-        [pscustomobject][ordered]@{
+        param($ServerName,
+            $ADComputerObjects
+        )
+        $ComputerObjectPath = ($ServerName.DistinguishedName.split(",") | select -skip 1 ) -join ","
+#        $DPMServerName = get-adcomputer -Identity $ComputerObjectPath | select -ExpandProperty name 
+        $DPMServerName = $ADComputerObjects | where DistinguishedName -eq $ComputerObjectPath | select -ExpandProperty name
+[pscustomobject][ordered]@{
             DPMServerName = $DPMServerName;
             Online = $(Test-Connection -ComputerName $DPMServerName -Count 1 -Quiet);
         }
-    } -Parameters $DPMServers
+    } -Parameters $DPMServers -OptionalParameters $ADComputerObjects
 
     if ($Online) {
         $Responses |
