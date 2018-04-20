@@ -144,10 +144,15 @@ function Get-BackOfficeComputersNotProtectedByDPM {
 
 Function Get-StaleRecoveryPointsFromDPM { 
     [cmdletbinding()]
-    param()
-    Write-Verbose -Message "Getting DPM Servers from Active Directory"
-    $DPMServers = Get-DPMServers -Online
-    Write-Verbose -Message "Comlete"
+    param(
+        [parameter]$Computername
+    )
+    if(-not $Computername){
+        Write-Verbose -Message "Getting DPM Servers from Active Directory"
+        $DPMServers = Get-DPMServers -Online
+        Write-Verbose -Message "Comlete"
+    }
+    else{$DPMServers = $Computername}
     $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
     $DateTimeLowerBound = (Get-Date).AddYears(-10)
     Write-Verbose -Message "Fetching datasource information"
