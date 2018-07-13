@@ -347,7 +347,7 @@ function Invoke-DPMServer2016Install {
 #        [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$ApplicationName
     )
 #    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName 
-    $DPMProductKey = (Get-PasswordstateEntryDetails -PasswordID 4045).Password
+    $DPMProductKey = (Get-PasswordstatePassword -ID 4045).Password
 #    $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
     $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"
         
