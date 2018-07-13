@@ -18,7 +18,7 @@ function Invoke-SCDPM2016Provision {
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
-    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID 4037
+    $DPMServiceAccount = Get-PasswordstatePassword -AsCredential -ID 4037
     $DPMServiceAccountUsername = ($DPMServiceAccount.username -split "\\")[1]
     Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccountUsername
     $Nodes | Update-TervisSNMPConfiguration
@@ -35,8 +35,8 @@ function Invoke-SCDPM2016FSProvision {
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
-    #$DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
-    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID ($TervisApplicationDefinition.environments).DPMServiceAccountPassword
+    #$DPMServiceAccount = Get-PasswordstatePassword -AsCredential -ID $TervisApplicationDefinition.DPMServiceAccountPassword
+    $DPMServiceAccount = Get-PasswordstatePassword -AsCredential -ID ($TervisApplicationDefinition.environments).DPMServiceAccountPassword
     $DPMServiceAccountUsername = ($DPMServiceAccount.username -split "\\")[1]
     Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccountUsername
     $Nodes | Update-TervisSNMPConfiguration
@@ -63,7 +63,7 @@ function Invoke-SCDPM2016SQLProvision {
 
 function Get-TervisStoreDatabaseLogFileUsage {
     $BOComputerListFromAD = Get-BackOfficeComputers -Online
-    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+    $StoreBOSACred = Get-PasswordstatePassword -AsCredential -ID 56
     $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
     $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
     
@@ -94,7 +94,7 @@ function Invoke-SCDPMOraBackupServerProvision {
     Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
     $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
-    $DPMServiceAccount = Get-PasswordstateCredential -PasswordID $TervisApplicationDefinition.DPMServiceAccountPassword
+    $DPMServiceAccount = Get-PasswordstatePassword -AsCredential -ID $TervisApplicationDefinition.DPMServiceAccountPassword
     Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccount.Username
     $Nodes | Update-TervisSNMPConfiguration
     $Nodes | Invoke-ClaimMPOI
@@ -109,7 +109,7 @@ function Invoke-SCDPMOraBackupServerProvision {
 
 #function Get-TervisStoreDatabaseLogFileUsage {
 #    $BOComputerListFromAD = Get-BackOfficeComputers -online
-#    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+#    $StoreBOSACred = Get-PasswordstatePassword -AsCredential -ID 56
 #    $BOExceptions = "1010osmgr02-pc","1010osbr-pc","1010osbo2-pc","LPTESTBO-VM","hambo-vm","1010OSMGR02-PC"
 #    $BOComputerListFromAD = $BOComputerListFromAD | Where {$BOExceptions -NotContains $_}
 #    
@@ -273,7 +273,7 @@ function Install-RMSHQLogFileUtilizationScheduledTasks {
         [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$ComputerName
     )
     begin {
-        $ScheduledTaskCredential = New-Object System.Management.Automation.PSCredential (Get-PasswordstateCredential -PasswordID 259)
+        $ScheduledTaskCredential = Get-PasswordstatePassword -AsCredential -ID 259
         $Execute = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
         $Argument = '-NoProfile -Command Test-RMSHQLogFileUtilization'
     }
@@ -292,8 +292,8 @@ function Invoke-DPMSQLServer2014Install {
     )
     $ApplicationName = $node.ApplicationName
     $ApplicationDefinition = Get-TervisApplicationDefinition -Name $node.ApplicationName 
-    $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
-    $DPMServiceAccountCredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).DPMServiceAccountPassword -AsPlainText
+    $SQLSACredentials = Get-PasswordstatePassword -ID ($ApplicationDefinition.Environments).SQLSAPassword
+    $DPMServiceAccountCredentials = Get-PasswordstatePassword -ID ($ApplicationDefinition.Environments).DPMServiceAccountPassword
     $ChocolateyPackageParameters = "/SQLSYSADMINACCOUNTS=BUILTIN\Administrators /SAPWD=$($SQLSACredentials.Password) /AGTSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /AGTSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /SQLSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /SQLSVCPASSWORD=$($DPMServiceAccountCredentials.Password) /RSSVCACCOUNT=$($DPMServiceAccountCredentials.Username) /RSSVCPASSWORD=$($DPMServiceAccountCredentials.Password)"
     $PackageArgs = "/IAcceptSQLServerLicenseTerms` 
     /ACTION=Install`
@@ -348,7 +348,7 @@ function Invoke-DPMServer2016Install {
     )
 #    $ApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName 
     $DPMProductKey = (Get-PasswordstatePassword -ID 4045).Password
-#    $SQLSACredentials = Get-PasswordstateCredential -PasswordID ($ApplicationDefinition.Environments).SQLSAPassword -AsPlainText
+#    $SQLSACredentials = Get-PasswordstatePassword -ID ($ApplicationDefinition.Environments).SQLSAPassword
     $DPMInstallSourcePath = "\\tervis.prv\Applications\Installers\Microsoft\SCDPM2016"
         
     $DPMInstallConfigFile = @"
@@ -384,7 +384,7 @@ function Get-TervisStoreDatabaseInformation {
     param(
         [parameter(Mandatory)]$Computername
     )
-    $StoreBOSACred = Get-PasswordstateCredential -PasswordID 56
+    $StoreBOSACred = Get-PasswordstatePassword -AsCredential -ID 56
     $StoreNumber = -join $Computername[0..3]
     $DBExceptions = "master","tempdb","model","msdb" 
     $DatabaseName = (Invoke-SQL -dataSource $Computername -database "master" -sqlCommand "select name from sys.databases WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')" -Credential $StoreBOSACred).name
