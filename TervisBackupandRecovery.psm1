@@ -147,18 +147,19 @@ Function Get-StaleRecoveryPointsFromDPM {
     param(
         [parameter]$Computername
     )
-    if(-not $Computername){
+#    if(-not $Computername){
         Write-Verbose -Message "Getting DPM Servers from Active Directory"
-        $DPMServers = Get-DPMServers -Online
+        $DPMServers = Get-DPMServers
         Write-Verbose -Message "Comlete"
-    }
-    else{$DPMServers = $Computername}
+#    }
+#    else{$DPMServers = $Computername}
     $OldestRecoveryPointTimeAllowed = (get-date).AddHours(-24)
     $DateTimeLowerBound = (Get-Date).AddYears(-10)
     Write-Verbose -Message "Fetching datasource information"
     $DPMDataSource = Start-ParallelWork -ScriptBlock {
         param($Server)
-        Connect-DPMServer -DPMServerName $Server -WarningAction SilentlyContinue | Out-Null
+        $Server | Out-Null
+        #Connect-DPMServer -DPMServerName $Server -WarningAction SilentlyContinue | Out-Null
         Get-DPMDatasource -DPMServerName $Server -Verbose
         $DPMDataSource | select latestrecoverypoint | Out-Null        
         Disconnect-DPMServer
@@ -399,6 +400,7 @@ function Get-DPMServers {
         [Switch]$Online
     )
     $DPMServers = Get-ADObject -Filter 'ObjectClass -eq "serviceConnectionPoint" -and Name -eq "MSDPM"'
+    $DPMServerExclusionList
     $ADComputerObjects = Get-ADComputer -filter *
 #    foreach($Computer in $DPMServers) {            
 #        $ComputerObjectPath = ($Computer.DistinguishedName.split(",") | select -skip 1 ) -join ","
@@ -426,5 +428,188 @@ function Get-DPMServers {
         Select -ExpandProperty DPMServerName -ExcludeProperty RunspaceId
     }
     #$Responses
+}
+
+function Invoke-DPMHealthCheck {
+    param(
+        [parameter(mandatory,ValueFromPipelineByPropertyName)]$DPMServerName
+    )
+    #$DPMServername = "inf-scdpmsql01"
+    Connect-DPMServer $DPMServername | Out-Null
+#    Write-Output "Getting Datasources"    
+    $DPMDatasources = Get-DPMDatasource -DPMServerName $DPMServername | where state -eq "valid" # | Where-Object name -eq "TervisCustomizerApproval" #| Select-Object DPMServerName,Computer,Name,protectiongroupname
+    $DPMDatasources | select latestrecoverypoint | Out-Null
+#    write-output "getting protectiongroups"
+    $DPMProtectionGroups = Get-DPMProtectionGroup -DPMServerName $DPMServername #| Where-Object name -eq "SQL-AllOthers"
+    $StaleRecoveryPoints = @() #New-Object System.Object
+    ForEach ($ProtectionGroup in $DPMProtectionGroups){
+    #   $ProtectionGroup = $DPMProtectionGroups | where name -eq "fedex"
+        $DatasourcesWithinProtectionGroup = $DPMDatasources | where ProtectionGroupName -eq $ProtectionGroup.Name
+        $ProtectionGroupDiskSchedule = Get-DPMPolicySchedule -ProtectionGroup $ProtectionGroup -ShortTerm
+        $ProtectionGroupOnlineSchedule = Get-DPMPolicySchedule -ProtectionGroup $ProtectionGroup -LongTerm Online
+        $OldestIncrementalRecoveryPointPermitted = ""
+        $DiskScheduleTimes = New-Object System.Collections.ArrayList
+        $OnlineScheduleTimes = New-Object System.Collections.ArrayList
+    
+        $DiskTimesOfDay = $ProtectionGroupDiskSchedule.TimesofDay.ToShortTimeString()
+        foreach($DiskRecoveryPointTime in $DiskTimesOfDay){
+            $Timestamp = [datetime]("{0:HH:mm}" -f [datetime]$DiskRecoveryPointTime)
+            if ($TimeStamp -gt (get-date)){
+                $DiskScheduleTimes.Add($TimeStamp.AddDays(-1)) | Out-Null
+            }
+            else {
+                $DiskScheduleTimes.Add($TimeStamp) | Out-Null
+            }
+        
+        }
+    
+        $OnlineTimesOfDay = $ProtectionGroupOnlineSchedule.TimesofDay.ToShortTimeString()
+        foreach($OnlineRecoveryPointTime in $OnlineTimesOfDay){
+                $Timestamp = [datetime]("{0:HH:mm}" -f [datetime]$OnlineRecoveryPointTime)
+                if ($TimeStamp -gt (get-date)){
+                    $OnlineScheduleTimes.Add($TimeStamp.AddDays(-1)) | Out-Null
+                }
+                else {
+                    $OnlineScheduleTimes.Add($TimeStamp) | Out-Null
+                }
+            
+        }
+    
+#        $OldestDiskRecoveryPointPermitted = ($DiskScheduleTimes | Sort-Object -Descending | Select-Object -first 1).addminutes(-30)
+#        $OldestOnlineRecoveryPointPermitted = $diskscheduletimes | where {$_ -lt ($OnlineScheduleTimes | Sort-Object -Descending | Select-Object -first 1)}
+        
+        if($ProtectionGroupDiskSchedule.JobType -eq "FullReplicationForApplication"){
+            $IncrementalFrequency = $ProtectionGroupDiskSchedule.Frequency
+            $OldestIncrementalRecoveryPointPermitted = (get-date).AddMinutes(-$IncrementalFrequency * 3)
+            $OldestStoresIncrementalRecoveryPointPermitted = (get-date).AddHours(-18)
+        }
+            
+        foreach ($Datasource in $DatasourcesWithinProtectionGroup){
+     #      $Datasource = $DatasourcesWithinProtectionGroup | where name -eq "fedex"
+             $DiskTimesOfDay = $ProtectionGroupDiskSchedule.TimesofDay.ToShortTimeString()
+             foreach($DiskRecoveryPointTime in $DiskTimesOfDay){
+                 $Timestamp = [datetime]("{0:HH:mm}" -f [datetime]$DiskRecoveryPointTime)
+                 if ($TimeStamp -gt (get-date)){
+                     $DiskScheduleTimes.Add($TimeStamp.AddDays(-1)) | Out-Null
+                 }
+                 else {
+                     $DiskScheduleTimes.Add($TimeStamp) | Out-Null
+                 }
+             
+             }
+         
+             $OnlineTimesOfDay = $ProtectionGroupOnlineSchedule.TimesofDay.ToShortTimeString()
+             foreach($OnlineRecoveryPointTime in $OnlineTimesOfDay){
+                     $Timestamp = [datetime]("{0:HH:mm}" -f [datetime]$OnlineRecoveryPointTime)
+                     if ($TimeStamp -gt (get-date)){
+                         $OnlineScheduleTimes.Add($TimeStamp.AddDays(-1)) | Out-Null
+                     }
+                     else {
+                         $OnlineScheduleTimes.Add($TimeStamp) | Out-Null
+                     }
+                 
+             }
+         
+            $OldestDiskRecoveryPointPermitted = ($DiskScheduleTimes | Sort-Object -Descending | Select-Object -first 1).addminutes(-30)
+            $OldestOnlineRecoveryPointPermitted = $diskscheduletimes | where {$_ -lt ($OnlineScheduleTimes | Sort-Object -Descending | Select-Object -first 1)} | Select-Object -First 1
+            $OldestSharepointRecoveryPointPermitted = ($DiskScheduleTimes | Sort-Object -Descending | Select-Object -first 1).addminutes(-30)
+
+
+            $LatestOnlineRecoveryPoint = Get-DPMRecoveryPoint -Datasource $($DataSource) -Online -OnlyActive | Sort-Object BackupTime -Descending | Select-Object -first 1
+            
+            if ($OldestIncrementalRecoveryPointPermitted){
+                if(($Datasource.protectiongroupname -match "Stores") -and ($Datasource.LatestRecoveryPoint -lt $OldestStoresIncrementalRecoveryPointPermitted)){
+                    $Datasource | Add-Member -MemberType NoteProperty -Name RecoveryPointType -Value "Incremental" -Force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name LatestRecoveryPointTime -Value $Datasource.LatestRecoveryPoint -force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name OldestRecoveryPointPermitted -Value $OldestStoresIncrementalRecoveryPointPermitted -force
+#                    $Output = $Datasource | Select-Object DPMServerName,Computer,Name,protectiongroupname,LatestRecoveryPointTime,OldestRecoveryPointPermitted,RecoveryPointType # | ft -AutoSize
+#                    $StaleRecoveryPoint = [pscustomobject][ordered]@{
+                    [pscustomobject][ordered]@{
+                        DPMServerName = $Datasource.DPMServername
+                        ComputerName = $Datasource.Computer
+                        Name = $Datasource.Name
+                        ProtectionGroupName = $Datasource.protectiongroupname
+                        LatestRecoveryPointTime = $Datasource.LatestRecoveryPointTime
+                        OldestRecoveryPointPermitted = $Datasource.OldestRecoveryPointPermitted
+                        RecoveryPointType = $Datasource.RecoveryPointType
+                    }
+#                    [Array]$StaleRecoveryPoints += $StaleRecoveryPoint
+                }
+                elseif(($Datasource.LatestRecoveryPoint -lt $OldestIncrementalRecoveryPointPermitted) -and ($Datasource.protectiongroupname -notmatch "Stores") -and ($DatasourcesWithinProtectionGroup.protectiongroupname -notmatch "Sharepoint")){
+                    $Datasource | Add-Member -MemberType NoteProperty -Name RecoveryPointType -Value "Incremental" -Force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name LatestRecoveryPointTime -Value $Datasource.LatestRecoveryPoint -force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name OldestRecoveryPointPermitted -Value $OldestIncrementalRecoveryPointPermitted -force
+#                    $Output = $Datasource | Select-Object DPMServerName,Computer,Name,protectiongroupname,LatestRecoveryPointTime,OldestRecoveryPointPermitted,RecoveryPointType # | ft -AutoSize
+#                    $StaleRecoveryPoint = [pscustomobject][ordered]@{
+                    [pscustomobject][ordered]@{
+                        DPMServerName = $Datasource.DPMServername
+                        ComputerName = $Datasource.Computer
+                        Name = $Datasource.Name
+                        ProtectionGroupName = $Datasource.protectiongroupname
+                        LatestRecoveryPointTime = $Datasource.LatestRecoveryPointTime
+                        OldestRecoveryPointPermitted = $Datasource.OldestRecoveryPointPermitted
+                        RecoveryPointType = $Datasource.RecoveryPointType
+                    }
+#                    [Array]$StaleRecoveryPoints += $StaleRecoveryPoint
+                }
+                elseif((($Datasource.LatestRecoveryPoint -lt $OldestSharepointRecoveryPointPermitted) -and ($datasource.protectiongroupname -match "Sharepoint"))){
+                    $Datasource | Add-Member -MemberType NoteProperty -Name RecoveryPointType -Value "Incremental" -Force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name LatestRecoveryPointTime -Value $Datasource.LatestRecoveryPoint -force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name OldestRecoveryPointPermitted -Value $OldestSharepointRecoveryPointPermitted -force
+#                    $Output = $Datasource | Select-Object DPMServerName,Computer,Name,protectiongroupname,LatestRecoveryPointTime,OldestRecoveryPointPermitted,RecoveryPointType # | ft -AutoSize
+#                    $StaleRecoveryPoint = [pscustomobject][ordered]@{
+                    [pscustomobject][ordered]@{
+                        DPMServerName = $Datasource.DPMServername
+                        ComputerName = $Datasource.Computer
+                        Name = $Datasource.Name
+                        ProtectionGroupName = $Datasource.protectiongroupname
+                        LatestRecoveryPointTime = $Datasource.LatestRecoveryPointTime
+                        OldestRecoveryPointPermitted = $Datasource.OldestRecoveryPointPermitted
+                        RecoveryPointType = $Datasource.RecoveryPointType
+                    }
+#                    [Array]$StaleRecoveryPoints += $StaleRecoveryPoint
+                }
+
+            }
+            else {
+                if (($Datasource.LatestRecoveryPoint -lt $OldestDiskRecoveryPointPermitted) -and ($Datasource.protectiongroupname -notmatch "Sharepoint")) {
+                    $Datasource | Add-Member -MemberType NoteProperty -Name RecoveryPointType -Value "Disk" -Force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name LatestRecoveryPointTime -Value $Datasource.LatestRecoveryPoint -force
+                    $Datasource | Add-Member -MemberType NoteProperty -Name OldestRecoveryPointPermitted -Value $OldestDiskRecoveryPointPermitted -force
+#                    $Output = $Datasource | Select-Object DPMServerName,Computer,Name,protectiongroupname,LatestRecoveryPointTime,OldestRecoveryPointPermitted,RecoveryPointType # | ft -AutoSize
+#                    $StaleRecoveryPoint = [pscustomobject][ordered]@{
+                    [pscustomobject][ordered]@{
+                        DPMServerName = $Datasource.DPMServername
+                        ComputerName = $Datasource.Computer
+                        Name = $Datasource.Name
+                        ProtectionGroupName = $Datasource.protectiongroupname
+                        LatestRecoveryPointTime = $Datasource.LatestRecoveryPointTime
+                        OldestRecoveryPointPermitted = $Datasource.OldestRecoveryPointPermitted
+                        RecoveryPointType = $Datasource.RecoveryPointType
+                    }
+#                    [Array]$StaleRecoveryPoints += $StaleRecoveryPoint
+                }
+            }
+            if (($LatestOnlineRecoveryPoint.BackupTime -lt $OldestOnlineRecoveryPointPermitted) -and ($Datasource.name -notmatch "ssp") -and ($Datasource.name -notmatch "spsearch")) {
+                $Datasource | Add-Member -MemberType NoteProperty -Name RecoveryPointType -Value Online -Force
+                $Datasource | Add-Member -MemberType NoteProperty -Name OldestRecoveryPointPermitted -Value $OldestOnlineRecoveryPointPermitted -force
+                $Datasource | Add-Member -MemberType NoteProperty -Name LatestRecoveryPointTime -Value $($LatestOnlineRecoveryPoint.BackupTime) -force
+#                $Output = $Datasource | Select-Object DPMServerName,Computer,Name,protectiongroupname,LatestRecoveryPointTime,OldestRecoveryPointPermitted,RecoveryPointType # | ft -AutoSize
+#                    $StaleRecoveryPoint = [pscustomobject][ordered]@{
+                    [pscustomobject][ordered]@{
+                        DPMServerName = $Datasource.DPMServername
+                        ComputerName = $Datasource.Computer
+                        Name = $Datasource.Name
+                        ProtectionGroupName = $Datasource.protectiongroupname
+                        LatestRecoveryPointTime = $Datasource.LatestRecoveryPointTime
+                        OldestRecoveryPointPermitted = $Datasource.OldestRecoveryPointPermitted
+                        RecoveryPointType = $Datasource.RecoveryPointType
+                    }
+#                    [Array]$StaleRecoveryPoints += $StaleRecoveryPoint
+            }    
+#        $StaleRecoveryPoints
+        }
+    }
+    Disconnect-DPMServer | Out-Null
 }
 
