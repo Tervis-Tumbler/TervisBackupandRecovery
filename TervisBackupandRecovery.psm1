@@ -267,23 +267,6 @@ function Test-RMSHQLogFileUtilization{
     }
 }
 
-function Install-RMSHQLogFileUtilizationScheduledTasks {
-    param (
-        [Parameter(Mandatory,ValueFromPipelineByPropertyName)]$ComputerName
-    )
-    begin {
-        $ScheduledTaskCredential = Get-PasswordstatePassword -AsCredential -ID 259
-        $Execute = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
-        $Argument = '-NoProfile -Command Test-RMSHQLogFileUtilization'
-    }
-    process {
-        $CimSession = New-CimSession -ComputerName $ComputerName
-        If (-NOT (Get-ScheduledTask -TaskName Test-RMSHQLogFileUtilization -CimSession $CimSession -ErrorAction SilentlyContinue)) {
-            Install-TervisScheduledTask -Credential $ScheduledTaskCredential -TaskName "RMSHQLogFileUtilizationMonitor" -Execute $Execute -Argument $Argument -RepetitionIntervalName EverWorkdayDuringTheDayEvery15Minutes -ComputerName $ComputerName
-        }
-    }
-}
-
 function Invoke-DPMSQLServer2014Install {
     [CmdletBinding(SupportsShouldProcess)]
     param (
