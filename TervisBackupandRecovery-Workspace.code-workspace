@@ -1,10 +1,13 @@
 {
 	"folders": [
 		{
-			"path": "C:\\Users\\dmohlmaster\\OneDrive - tervis\\Documents\\WindowsPowerShell\\Modules\\TervisDataProtectionManager"
+			"path": "..\\TervisDataProtectionManager"
 		},
 		{
 			"path": "."
+		},
+		{
+			"path": "C:\\Users\\dmohlmaster\\OneDrive - tervis\\Documents\\WindowsPowerShell\\Modules\\ADonDebug"
 		}
 	]
 }
