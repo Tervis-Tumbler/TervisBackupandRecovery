@@ -547,3 +547,19 @@ function Invoke-DPMHealthCheck {
     Disconnect-DPMServer | Out-Null
 }
 
+function Invoke-SCDPM2019Provision {
+    $EnvironmentName = "Infrastructure"
+    $ApplicationName = "SCDPM2019"
+    $TervisApplicationDefinition = Get-TervisApplicationDefinition -Name $ApplicationName
+    Invoke-ApplicationProvision -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $Nodes = Get-TervisApplicationNode -ApplicationName $ApplicationName -EnvironmentName $EnvironmentName
+    $ApplicationAdministratorPrivilegeADGroupName = Get-ApplicationAdministratorPrivilegeADGroupName -EnvironmentName $EnvironmentName -ApplicationName $ApplicationName
+    $DPMServiceAccount = Get-PasswordstatePassword -AsCredential -ID 4037
+    $DPMServiceAccountUsername = ($DPMServiceAccount.username -split "\\")[1]
+    Get-ADGroup $ApplicationAdministratorPrivilegeADGroupName | Add-ADGroupMember -Members $DPMServiceAccountUsername
+    $Nodes | Update-TervisSNMPConfiguration
+    $Nodes | Invoke-ClaimMPOI
+    $Nodes | Invoke-InstallWindowsFeatureViaDISM -FeatureName "Microsoft-Hyper-V"
+    #$Nodes | Invoke-DPMSQLServer2014Install
+    #$Nodes | Invoke-DPMServer2016Install
+}
