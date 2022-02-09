@@ -29,7 +29,3 @@
     Location = "Peak10"
 }
 
-$BackupDefinition = [PSCustomObject][Ordered]@{
-    Name = "UnifiController"
-
-}
